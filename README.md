@@ -42,35 +42,30 @@ The map highlights:
 ## Requirements
 
 - Python ≥ 3.8  
-- Python dependencies:
 
+Install dependencies:
+
+```bash
 pip install requests pandas geopandas matplotlib cartopy shapely pyproj fiona
+```
 
-Note: cartopy, fiona, and pyproj may require system libraries depending on your OS.
+Note: `cartopy`, `fiona`, and `pyproj` may require system libraries.
 
 ---
 
 ## Usage
 
-Open the notebook:
+Run the script:
 
 ```bash
-jupyter notebook myworld.ipynb
-
-or in JupyterLab:
-
-jupyter lab myworld.ipynb
-
-Then run all cells to generate the map.
-
-```markdown
-Alternatively, open the notebook directly in VS Code or any compatible environment.
+python myworld.py
+```
 
 The output is saved as:
 
 - PNG (high resolution)  
-- SVG (vector format)
-- PDF (vector format)
+- SVG (vector format)  
+- PDF (vector format)  
 
 ---
 
@@ -78,16 +73,20 @@ The output is saved as:
 
 Edit the following variables in the script:
 
+```python
 lived_in = {...}
 visited = {...}
 visited_states = {...}
+```
 
 Example:
 
+```python
 visited_states = {
     ("Germany", "Bayern"),
-    ("China", "Beijing Municipality"),
+    ("People's Republic of China", "Beijing Municipality"),
 }
+```
 
 ---
 
@@ -95,7 +94,9 @@ visited_states = {
 
 Set:
 
-projection_mode = "mercator"
+```python
+projection_mode = "robinson_europe"
+```
 
 Available options:
 
@@ -109,7 +110,9 @@ Available options:
 
 ADM1 geometries are simplified to match the coarse base map:
 
+```python
 ADM1_SIMPLIFY_TOLERANCE = 0.15
+```
 
 - higher → less detail, faster  
 - lower → more detail, slower  
@@ -125,21 +128,17 @@ Example:
 - Natural Earth → People's Republic of China  
 - Input → China  
 
-The script resolves this via:
-
-country_name_map = {
-    "China": "People's Republic of China",
-}
+The script resolves this via internal normalization.
 
 ---
 
 ## Data Sources
 
-Natural Earth (countries, coastline)  
-https://www.naturalearthdata.com/  
+- Natural Earth (countries, coastline)  
+  https://www.naturalearthdata.com/  
 
-geoBoundaries (ADM1 regions)  
-https://www.geoboundaries.org/  
+- geoBoundaries (ADM1 regions)  
+  https://www.geoboundaries.org/  
 
 ---
 
@@ -147,7 +146,9 @@ https://www.geoboundaries.org/
 
 Only relevant countries are processed:
 
+```python
 countries_with_subdivisions = visited | lived_in
+```
 
 This significantly reduces runtime.
 
@@ -157,13 +158,20 @@ This significantly reduces runtime.
 
 Inspect available region names:
 
+```python
 print(sorted(
-    adm1_all.loc[adm1_all["country_name"] == "People's Republic of China", "state_name"].unique()
+    adm1_all.loc[
+        adm1_all["country_name"] == "People's Republic of China",
+        "state_name"
+    ].unique()
 ))
+```
 
 Inspect country names:
 
+```python
 print(sorted(countries[country_name_col].unique()))
+```
 
 ---
 
@@ -172,15 +180,14 @@ print(sorted(countries[country_name_col].unique()))
 The script generates:
 
 - travel_map_*.png  
-- travel_map_*.svg
+- travel_map_*.svg  
 - travel_map_*.pdf  
-
 
 ---
 
 ## Notes
 
-- Country names must match dataset naming (after normalization)  
+- Country names must match dataset naming  
 - ADM1 naming is not fully standardized  
 - Geometry simplification ensures visual consistency  
 - The map prioritizes clarity over geographic precision  
