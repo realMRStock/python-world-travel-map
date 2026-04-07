@@ -70,6 +70,7 @@ The output is saved as:
 
 - PNG (high resolution)  
 - SVG (vector format)
+- PDF (vector format)
 
 ---
 
