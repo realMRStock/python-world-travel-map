@@ -6,7 +6,7 @@ The script combines Natural Earth and geoBoundaries datasets with GeoPandas, Mat
 
 The map highlights:
 - visited countries  
-- lived–in countries  
+- lived-in countries  
 - selected administrative regions (ADM1)  
 
 ---
@@ -172,7 +172,9 @@ print(sorted(countries[country_name_col].unique()))
 The script generates:
 
 - travel_map_*.png  
-- travel_map_*.svg  
+- travel_map_*.svg
+- travel_map_*.pdf  
+
 
 ---
 
