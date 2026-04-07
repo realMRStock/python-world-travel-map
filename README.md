@@ -1,6 +1,6 @@
 # 🌍 World Travel Map Generator
 
-This repository demonstrates how to generate clean, publication–style world maps visualizing personal travel history using Python.
+This repository demonstrates how to generate world maps visualizing personal travel history using Python.
 
 The script combines Natural Earth and geoBoundaries datasets with GeoPandas, Matplotlib, and Cartopy to create consistent and minimal maps.
 
@@ -18,7 +18,7 @@ The map highlights:
   - Multiple projections (Robinson, Mercator)  
   - Consistent styling across all regions  
 
-- 🎨 Clean, publication–style design  
+- 🎨 Clean design  
   - Minimal color palette  
   - Thin borders and outlines  
   - Helvetica / sans–serif typography  
@@ -52,14 +52,24 @@ Note: cartopy, fiona, and pyproj may require system libraries depending on your 
 
 ## Usage
 
-Run the script:
+Open the notebook:
 
-python main.py
+```bash
+jupyter notebook myworld.ipynb
+
+or in JupyterLab:
+
+jupyter lab myworld.ipynb
+
+Then run all cells to generate the map.
+
+```markdown
+Alternatively, open the notebook directly in VS Code or any compatible environment.
 
 The output is saved as:
 
 - PNG (high resolution)  
-- SVG (vector format)  
+- SVG (vector format)
 
 ---
 
@@ -162,17 +172,6 @@ The script generates:
 
 - travel_map_*.png  
 - travel_map_*.svg  
-
----
-
-## Project Structure
-
-python-world-travel-map/
-├── main.py
-├── README.md
-├── requirements.txt
-├── output/
-└── .gitignore  
 
 ---
 
