@@ -196,8 +196,9 @@ The script generates:
 
 ## License
 
-This repository contains code only.
+This repository contains code only and is licensed under the MIT License.
 
-Data licenses:
-- Natural Earth → public domain  
-- geoBoundaries → open license  
+Data sources are subject to their own licenses:
+
+- Natural Earth → Public Domain
+- geoBoundaries → https://www.geoboundaries.org/
