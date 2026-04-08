@@ -68,6 +68,10 @@ visited_states = {
 
     ("United States of America", "Hawaii"),
     ("United States of America", "Kentucky"),
+
+    ("Chile", "RegiÃ³n Metropolitana de Santiago"),
+    ("Chile", "RegiÃ³n de Antofagasta"),
+    ("Chile", "RegiÃ³n de Los Lagos"),
 }
 
 # Manual ISO3 fallback mapping for countries whose code may not be read cleanly
