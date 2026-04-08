@@ -194,6 +194,12 @@ The script generates:
 
 ---
 
+## Disclaimer
+
+Map boundaries follow the underlying data sources (Natural Earth, geoBoundaries) and do not imply any political position.
+
+---
+
 ## License
 
 This repository contains code only and is licensed under the MIT License.
