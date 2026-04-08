@@ -1,6 +1,7 @@
 import requests
 import pandas as pd
 import geopandas as gpd
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 
@@ -102,7 +103,6 @@ iso3_map = {
 #   "robinson_bering"
 #   "mercator"
 projection_mode = "robinson_europe"
-projection_mode = "mercator"
 
 # -----------------------------
 # 1c) Detail control
@@ -110,7 +110,7 @@ projection_mode = "mercator"
 # Simplify ADM1 geometries so internal borders visually match
 # the coarse Natural Earth 110m base map.
 # Higher values = less detail.
-ADM1_SIMPLIFY_TOLERANCE = 0.15
+ADM1_SIMPLIFY_TOLERANCE = 0.25
 
 # -----------------------------
 # 2) Data loading functions
@@ -349,7 +349,6 @@ else:
 # Very light blue internal borders for visited/lived-in countries
 # Gray internal borders otherwise
 # Black outline = lived-in country
-# All line widths are identical
 colors = {
     "not_visited": "#edf1f7",
     "visited": "#a9d0ec",
@@ -358,15 +357,27 @@ colors = {
 
     "country_border": "#2f78b7",
     "state_border_default": "#d2d8e3",
-    "state_border_visited": "#f3f6fb",
+    "state_border_visited": "#f7f9fd",
 
     "lived_outline": "#000000",
     "coastline": "#d2d8e3",
+
+    # halo colors to visually smooth line differences
+    "halo_light": "#ffffff",
+    "halo_country": "#eef3fb",
 }
 
-line_width = 0.45
-black_line_width = 0.55
-gray_line_width = 0.35
+# Line styling
+country_line_width = 0.42
+internal_line_width = 0.16
+gray_internal_line_width = 0.12
+black_line_width = 0.52
+internal_halo_extra = 0.12
+country_halo_extra = 0.22
+
+# Visually smooth lines by making joins and end caps round
+mpl.rcParams["lines.solid_joinstyle"] = "round"
+mpl.rcParams["lines.solid_capstyle"] = "round"
 
 # -----------------------------
 # 6) Plot
@@ -431,46 +442,91 @@ if not state_lines.empty:
     state_lines_visited = state_lines[
         state_lines["country_name"].isin(visited_or_lived_countries)
     ]
+
+    # Default internal borders: halo pass
     if not state_lines_default.empty:
         state_lines_default.boundary.plot(
             ax=ax,
             transform=data_crs,
+            color=colors["halo_light"],
+            linewidth=gray_internal_line_width + internal_halo_extra,
+            alpha=0.28,
+            zorder=3.5,
+        )
+        state_lines_default.boundary.plot(
+            ax=ax,
+            transform=data_crs,
             color=colors["state_border_default"],
-            linewidth=gray_line_width,
+            linewidth=gray_internal_line_width,
+            alpha=0.75,
             zorder=4,
         )
 
+    # Visited/lived-in internal borders: halo pass
     if not state_lines_visited.empty:
         state_lines_visited.boundary.plot(
             ax=ax,
             transform=data_crs,
+            color=colors["halo_light"],
+            linewidth=internal_line_width + internal_halo_extra,
+            alpha=0.32,
+            zorder=3.6,
+        )
+        state_lines_visited.boundary.plot(
+            ax=ax,
+            transform=data_crs,
             color=colors["state_border_visited"],
-            linewidth=line_width,
+            linewidth=internal_line_width,
+            alpha=0.82,
             zorder=4,
         )
 
-# Draw coastline
+# Draw coastline with halo so it visually matches the smoothed internal borders
+coastline.plot(
+    ax=ax,
+    transform=data_crs,
+    color=colors["halo_country"],
+    linewidth=country_line_width + country_halo_extra,
+    alpha=0.35,
+    zorder=4.6,
+)
 coastline.plot(
     ax=ax,
     transform=data_crs,
     color=colors["coastline"],
-    linewidth=line_width,
+    linewidth=country_line_width,
+    alpha=0.82,
     zorder=5,
 )
 
-# Draw country borders above internal borders
+# Draw country borders above internal borders, also with a subtle halo
+countries.boundary.plot(
+    ax=ax,
+    transform=data_crs,
+    color=colors["halo_country"],
+    linewidth=country_line_width + country_halo_extra,
+    alpha=0.30,
+    zorder=5.6,
+)
 countries.boundary.plot(
     ax=ax,
     transform=data_crs,
     color=colors["country_border"],
-    linewidth=line_width,
+    linewidth=country_line_width,
     zorder=6,
 )
 
 # Draw lived-in countries last so the outline stays clearly visible
 lived_subset = countries[countries["status"] == "lived_in"]
-lived_subset = countries[countries["status"] == "lived_in"]
 if not lived_subset.empty:
+    lived_subset.boundary.plot(
+        ax=ax,
+        transform=data_crs,
+        color=colors["halo_light"],
+        linewidth=black_line_width + 0.18,
+        alpha=0.25,
+        zorder=6.6,
+    )
     lived_subset.boundary.plot(
         ax=ax,
         transform=data_crs,
