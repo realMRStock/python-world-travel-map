@@ -64,7 +64,7 @@ visited_states = {
 
     ("People's Republic of China", "Beijing Municipality"),
     ("People's Republic of China", "Guangxi Zhuang Autonomous Region"),
-    ("People's Republic of China", "Guangdong"),
+    ("People's Republic of China", "Guangzhou Province"),
 
     ("United States of America", "Hawaii"),
     ("United States of America", "Kentucky"),
