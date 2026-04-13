@@ -111,10 +111,10 @@ projection_mode = "robinson_europe"
 # -----------------------------
 # 1c) Detail control
 # -----------------------------
-# Simplify ADM1 geometries so internal borders visually match
-# the coarse Natural Earth 110m base map.
-# Higher values = less detail.
-ADM1_SIMPLIFY_TOLERANCE = 0.25
+# Simplify highlighted ADM1 geometries slightly for visual consistency.
+# Internal borders are derived from original ADM1 polygons first and only
+# then lightly simplified as lines.
+ADM1_SIMPLIFY_TOLERANCE = 0.18
 
 # -----------------------------
 # 2) Data loading functions
@@ -183,7 +183,7 @@ def add_country_name_column(
 
 
 def simplify_geometries(gdf: gpd.GeoDataFrame, tolerance: float) -> gpd.GeoDataFrame:
-    """Reduce ADM1 geometry complexity to match the coarse world base map."""
+    """Reduce polygon geometry complexity."""
     out = gdf.copy()
     out["geometry"] = out.geometry.simplify(
         tolerance=tolerance,
@@ -191,6 +191,91 @@ def simplify_geometries(gdf: gpd.GeoDataFrame, tolerance: float) -> gpd.GeoDataF
     )
     out = out[out.geometry.notnull() & ~out.geometry.is_empty].copy()
     return out
+
+
+def simplify_line_geometries(gdf: gpd.GeoDataFrame, tolerance: float) -> gpd.GeoDataFrame:
+    """Lightly simplify line geometries after unique border extraction."""
+    out = gdf.copy()
+    out["geometry"] = out.geometry.simplify(
+        tolerance=tolerance,
+        preserve_topology=False
+    )
+    out = out[out.geometry.notnull() & ~out.geometry.is_empty].copy()
+    return out
+
+
+def build_unique_internal_boundaries(adm1_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """Create unique shared internal borders between neighboring ADM1 polygons."""
+    from shapely.ops import unary_union, linemerge
+
+    records = []
+
+    for country, group in adm1_gdf.groupby("country_name"):
+        group = group.reset_index(drop=True)
+
+        if len(group) < 2:
+            continue
+
+        shared_segments = []
+
+        # Compare each polygon pair only once
+        for i in range(len(group)):
+            geom_i = group.geometry.iloc[i]
+            if geom_i is None or geom_i.is_empty:
+                continue
+
+            for j in range(i + 1, len(group)):
+                geom_j = group.geometry.iloc[j]
+                if geom_j is None or geom_j.is_empty:
+                    continue
+
+                # Only neighboring polygons can share an internal border
+                if not geom_i.touches(geom_j):
+                    continue
+
+                shared = geom_i.boundary.intersection(geom_j.boundary)
+
+                if shared.is_empty:
+                    continue
+
+                if shared.geom_type in ["LineString", "MultiLineString"]:
+                    shared_segments.append(shared)
+                elif shared.geom_type == "GeometryCollection":
+                    line_parts = [
+                        g for g in shared.geoms
+                        if g.geom_type in ["LineString", "MultiLineString"] and not g.is_empty
+                    ]
+                    if line_parts:
+                        shared_segments.extend(line_parts)
+
+        if not shared_segments:
+            continue
+
+        merged = unary_union(shared_segments)
+
+        # Only merge if this is actually a multi-part line geometry
+        if merged.geom_type in ["MultiLineString", "GeometryCollection"]:
+            try:
+                merged = linemerge(merged)
+            except Exception:
+                pass
+
+        if merged.is_empty:
+            continue
+
+        records.append({
+            "country_name": country,
+            "geometry": merged
+        })
+
+    if not records:
+        return gpd.GeoDataFrame(
+            columns=["country_name", "geometry"],
+            geometry="geometry",
+            crs=adm1_gdf.crs
+        )
+
+    return gpd.GeoDataFrame(records, geometry="geometry", crs=adm1_gdf.crs)
 
 
 def get_projection(mode: str):
@@ -249,10 +334,8 @@ def get_projection(mode: str):
 countries = load_ne_countries()
 coastline = load_ne_coastline()
 
-# Choose the best available country-name column in Natural Earth
 country_name_col = "NAME_EN" if "NAME_EN" in countries.columns else "ADMIN"
 
-# Choose the best available ISO3 column in Natural Earth
 if "ADM0_A3" in countries.columns:
     iso3_col = "ADM0_A3"
 elif "ISO_A3" in countries.columns:
@@ -275,13 +358,11 @@ countries["status"] = countries[country_name_col].apply(classify_country)
 # -----------------------------
 # 4) Load ADM1 only for relevant countries
 # -----------------------------
-# This keeps the map readable and significantly improves performance.
 adm1_frames = []
 
 if iso3_col is None:
     raise RuntimeError("No ISO3 column found in the countries dataset.")
 
-# Only countries in visited or lived_in receive internal borders
 countries_with_subdivisions = visited | lived_in
 
 selected_countries = (
@@ -300,7 +381,6 @@ for _, row in selected_countries.iterrows():
 
     iso3 = iso3.strip()
 
-    # Use manual fallback mapping when Natural Earth provides an invalid ISO code
     if len(iso3) != 3 or iso3 == "-99":
         if country in iso3_map:
             iso3 = iso3_map[country]
@@ -324,16 +404,19 @@ if len(adm1_frames) > 0:
     if adm1_all.crs != countries.crs:
         adm1_all = adm1_all.to_crs(countries.crs)
 
-    # Simplify ADM1 boundaries to approximately match the 110m world map style
-    adm1_all = simplify_geometries(adm1_all, ADM1_SIMPLIFY_TOLERANCE)
-
     visited_state_set = set(visited_states)
     adm1_all["is_visited_state"] = adm1_all.apply(
         lambda r: (r["country_name"], r["state_name"]) in visited_state_set,
         axis=1,
     )
 
-    state_lines = adm1_all.copy()
+    # Build unique internal borders from original ADM1 polygons first
+    state_lines = build_unique_internal_boundaries(adm1_all)
+
+    # Only simplify the resulting linework lightly afterwards
+    state_lines = simplify_line_geometries(state_lines, 0.02)
+
+    # Keep highlighted visited states unsimplified so they match border geometry better
     state_highlights = adm1_all[adm1_all["is_visited_state"]].copy()
 else:
     adm1_all = gpd.GeoDataFrame(
@@ -341,18 +424,16 @@ else:
         geometry="geometry",
         crs="EPSG:4326"
     )
-    state_lines = adm1_all.copy()
+    state_lines = gpd.GeoDataFrame(
+        columns=["country_name", "geometry"],
+        geometry="geometry",
+        crs="EPSG:4326"
+    )
     state_highlights = adm1_all.copy()
 
 # -----------------------------
 # 5) Styling
 # -----------------------------
-# Light blue = visited country
-# Dark blue = visited state / region
-# Dark blue country borders
-# Very light blue internal borders for visited/lived-in countries
-# Gray internal borders otherwise
-# Black outline = lived-in country
 colors = {
     "not_visited": "#edf1f7",
     "visited": "#a9d0ec",
@@ -360,26 +441,21 @@ colors = {
     "visited_state": "#2f78b7",
 
     "country_border": "#2f78b7",
-    "state_border_default": "#d2d8e3",
-    "state_border_visited": "#f7f9fd",
+    "state_border_default": "#aeb8c8",
+    "state_border_visited": "#dfe7f4",
 
     "lived_outline": "#000000",
     "coastline": "#d2d8e3",
 
-    # halo colors to visually smooth line differences
-    "halo_light": "#ffffff",
     "halo_country": "#eef3fb",
 }
 
-# Line styling
 country_line_width = 0.42
-internal_line_width = 0.16
-gray_internal_line_width = 0.12
+internal_line_width = 0.30
+gray_internal_line_width = 0.22
 black_line_width = 0.52
-internal_halo_extra = 0.12
 country_halo_extra = 0.22
 
-# Visually smooth lines by making joins and end caps round
 mpl.rcParams["lines.solid_joinstyle"] = "round"
 mpl.rcParams["lines.solid_capstyle"] = "round"
 
@@ -406,11 +482,9 @@ if proj_cfg["set_global"]:
 else:
     ax.set_extent(proj_cfg["extent"], crs=data_crs)
 
-# This custom aspect tweak is only used for the Mercator variant
 if projection_mode == "mercator":
     ax.set_aspect(0.9)
 
-# Draw base country polygons first, without borders
 for status in ["not_visited", "visited", "lived_in"]:
     subset = countries[countries["status"] == status]
     if not subset.empty:
@@ -423,7 +497,6 @@ for status in ["not_visited", "visited", "lived_in"]:
             zorder=1,
         )
 
-# Highlight selected visited ADM1 regions
 if not state_highlights.empty:
     state_highlights.plot(
         ax=ax,
@@ -434,9 +507,6 @@ if not state_highlights.empty:
         zorder=3,
     )
 
-# Draw internal borders with two visual categories:
-# - very light blue for visited/lived-in countries
-# - gray for all other loaded countries
 if not state_lines.empty:
     visited_or_lived_countries = visited | lived_in
 
@@ -447,45 +517,26 @@ if not state_lines.empty:
         state_lines["country_name"].isin(visited_or_lived_countries)
     ]
 
-    # Default internal borders: halo pass
     if not state_lines_default.empty:
-        state_lines_default.boundary.plot(
-            ax=ax,
-            transform=data_crs,
-            color=colors["halo_light"],
-            linewidth=gray_internal_line_width + internal_halo_extra,
-            alpha=0.28,
-            zorder=3.5,
-        )
-        state_lines_default.boundary.plot(
+        state_lines_default.plot(
             ax=ax,
             transform=data_crs,
             color=colors["state_border_default"],
             linewidth=gray_internal_line_width,
-            alpha=0.75,
+            alpha=0.88,
             zorder=4,
         )
 
-    # Visited/lived-in internal borders: halo pass
     if not state_lines_visited.empty:
-        state_lines_visited.boundary.plot(
-            ax=ax,
-            transform=data_crs,
-            color=colors["halo_light"],
-            linewidth=internal_line_width + internal_halo_extra,
-            alpha=0.32,
-            zorder=3.6,
-        )
-        state_lines_visited.boundary.plot(
+        state_lines_visited.plot(
             ax=ax,
             transform=data_crs,
             color=colors["state_border_visited"],
             linewidth=internal_line_width,
-            alpha=0.82,
+            alpha=0.96,
             zorder=4,
         )
 
-# Draw coastline with halo so it visually matches the smoothed internal borders
 coastline.plot(
     ax=ax,
     transform=data_crs,
@@ -503,7 +554,6 @@ coastline.plot(
     zorder=5,
 )
 
-# Draw country borders above internal borders, also with a subtle halo
 countries.boundary.plot(
     ax=ax,
     transform=data_crs,
@@ -520,13 +570,12 @@ countries.boundary.plot(
     zorder=6,
 )
 
-# Draw lived-in countries last so the outline stays clearly visible
 lived_subset = countries[countries["status"] == "lived_in"]
 if not lived_subset.empty:
     lived_subset.boundary.plot(
         ax=ax,
         transform=data_crs,
-        color=colors["halo_light"],
+        color="#ffffff",
         linewidth=black_line_width + 0.18,
         alpha=0.25,
         zorder=6.6,
