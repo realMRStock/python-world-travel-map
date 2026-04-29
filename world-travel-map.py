@@ -67,6 +67,7 @@ visited_states = {
     ("People's Republic of China", "Guangzhou Province"),
 
     ("United States of America", "Hawaii"),
+    ("United States of America", "Indiana"),
     ("United States of America", "Kentucky"),
 
     ("Chile", "RegiÃ³n Metropolitana de Santiago"),
